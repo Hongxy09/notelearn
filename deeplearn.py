@@ -209,11 +209,11 @@ def numerical_gradient(f, X):
     if X.ndim == 1:
         return numerical_gradient_no_batch(f, X)
     else:
-        grad = np.zeros_like(X)
+        grad = np.zeros_like(X)#和X形状相同的空数组
         for i, x in enumerate(X):#同时列出下标与下标对象
             grad[i] = numerical_gradient_no_batch(f, x)
         return grad
-def fun_2(x):
+def fun_test(x):
     if x.ndim == 1:
         return np.sum(x**2)
     else:
@@ -229,7 +229,7 @@ def gradient_pic_show():
     X, Y = np.meshgrid(x0, x1)
     X = X.flatten()
     Y = Y.flatten()
-    grad = numerical_gradient(fun_2, np.array([X, Y]) )
+    grad = numerical_gradient(fun_test, np.array([X, Y]) )
 
     plt.figure()
     plt.quiver(X, Y, -grad[0], -grad[1],  angles="xy",color="#666666")#,headwidth=10,scale=40,color="#444444")
@@ -242,8 +242,9 @@ def gradient_pic_show():
     plt.draw()
     plt.show()
 def gradient_descend(f,init_x,lr=0.01,step_num=100):
-    '''梯度下降法调整参数—lr:更新参数的程度,step_num：梯度下降法的重复次数
-    gradient_descend(fun_2,init_x=np.array([-3.0,4.0]),lr=0.1,step_num=100)
+    '''梯度下降法调整参数—lr:更新参数的程度==学习率（这种人为调整的参数也称作超参数）,step_num：梯度下降法的重复次数
+    x=x-lr*grad==一次调整
+    gradient_descend(fun_test,init_x=np.array([-3.0,4.0]),lr=0.1,step_num=100)
     这里是针对fun_2函数进行梯度下降调整输入的x以达到fun_2(x)的最小值'''
     x=init_x
     for _i in range(step_num):
@@ -251,3 +252,89 @@ def gradient_descend(f,init_x,lr=0.01,step_num=100):
         x=x-grad*lr
     return x
 #神经网络中的梯度：损失函数关于权重参数的梯度
+class simpleNet:
+    '''随机生成一个2*3矩阵
+    predict：对其进行点乘（即神经网络中的隐藏层）再进行输出
+    loss：判断输出的y矩阵中显示的各个结果概率和答案t的差别以获得损失函数'''
+    def __init__(self):
+        self.W = np.random.randn(2,3)
+    def predict(self, x):
+        return np.dot(x, self.W)
+    def loss(self, x, t):
+        z = self.predict(x)
+        y = softmax(z)
+        loss = cross_entropy_error(y, t)
+        return loss
+def done_simpleNet():
+    f=lambda w:net.loss(x,t)
+    net=simpleNet()
+    x=np.array([0.6,0.9])
+    t=np.array([1,0,0])
+    dW=numerical_gradient(f,net.W)
+    print(dW)#W:权重参数
+'''神经网络的学习
+    1.mini_batch抽取数据
+    2.计算损失函数对于各个权重参数的梯度大小
+    3.按照梯度对权重参数进行微小改变
+    4.重复1，2，3'''
+class TwoLayerNet:
+    '''两层神经网的实现'''
+    def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01):
+        # 初始化权重
+        self.params = {}
+        self.params['W1'] = weight_init_std * np.random.randn(input_size, hidden_size)
+        self.params['b1'] = np.zeros(hidden_size)
+        self.params['W2'] = weight_init_std * np.random.randn(hidden_size, output_size)
+        self.params['b2'] = np.zeros(output_size)
+    def predict(self, x):
+        W1, W2 = self.params['W1'], self.params['W2']
+        b1, b2 = self.params['b1'], self.params['b2']
+        a1 = np.dot(x, W1) + b1
+        z1 = sigmoid(a1)
+        a2 = np.dot(z1, W2) + b2
+        y = softmax(a2)
+        return y
+    # x:输入数据, t:监督数据(训练数据)
+    def loss(self, x, t):
+        y = self.predict(x)
+        return cross_entropy_error(y, t)
+    
+    def accuracy(self, x, t):
+        y = self.predict(x)
+        y = np.argmax(y, axis=1)
+        t = np.argmax(t, axis=1) 
+        accuracy = np.sum(y == t) / float(x.shape[0])
+        return accuracy
+        
+    # x:输入数据, t:监督数据
+    def numerical_gradient(self, x, t):
+        loss_W = lambda W: self.loss(x, t)
+        grads = {}
+        grads['W1'] = numerical_gradient(loss_W, self.params['W1'])
+        grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
+        grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
+        grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
+        return grads
+        
+    def gradient(self, x, t):
+        W1, W2 = self.params['W1'], self.params['W2']
+        b1, b2 = self.params['b1'], self.params['b2']
+        grads = {}
+        batch_num = x.shape[0]
+        
+        # forward
+        a1 = np.dot(x, W1) + b1
+        z1 = sigmoid(a1)
+        a2 = np.dot(z1, W2) + b2
+        y = softmax(a2)
+        
+        # backward
+        dy = (y - t) / batch_num
+        grads['W2'] = np.dot(z1.T, dy)
+        grads['b2'] = np.sum(dy, axis=0)
+        da1 = np.dot(dy, W2.T)
+        dz1 = sigmoid_grad(a1) * da1
+        grads['W1'] = np.dot(x.T, dz1)
+        grads['b1'] = np.sum(dz1, axis=0)
+
+        return grads
