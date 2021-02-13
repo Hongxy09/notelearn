@@ -249,3 +249,4 @@ def gradient_descend(f,init_x,lr=0.01,step_num=100):
         grad=numerical_gradient(f,x)
         x=x-grad*lr
     return x
+#好像删掉了
