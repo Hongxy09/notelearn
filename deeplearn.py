@@ -112,9 +112,9 @@ def img_show(img):
 def get_data():
     '''(训练图像，训练标签)(测试图像，测试标签)
     flatten：true则将图像压缩为784大小一维数组，false则展开为1*28*28三维数组
-    注意此处是压缩并标准化，正常显示的图像'''
+    注意此处是压缩并标准化，正常显示的图像，输出的数据取得是测试图像和测试标签'''
     (x_train, t_train), (x_test, t_test) = load_mnist(flatten=True,normalize=True)
-    return x_test, t_test,x_train,t_train
+    return x_train,t_train,x_test, t_test
 def init_mnist():
     '''利用pickle保存了network的数据直接导入即可
     这个文件中的输入神经元有784个，输出神经元10个，中间两层隐藏层，第1层50个第2层100个
@@ -127,7 +127,7 @@ def init_mnist():
     return network
 def done_network_one():
     '''神经网络在mnist中的实现'''
-    x,t,_,_= get_data()
+    _,_,x,t= get_data()
     network = init_mnist()
     accuracy_cnt = 0
     for i in range(len(x)):
@@ -140,7 +140,7 @@ def done_network_pack():
     '''神经网络批处理图像mnist
     x是100*784矩阵，相当于同时对100个图像进行处理，导出的结果是100*10的矩阵
     axis代表沿着第1维方向（即行方向）寻找值最大的下标,输出结果是每一行最大值的下标矩阵中第0维是列，第1维是行'''
-    x,t,_,_=get_data()
+    _,_,x,t= get_data()
     network = init_mnist()
     batch_size=100#批处理的数量
     accuracy_cnt = 0
@@ -150,4 +150,102 @@ def done_network_pack():
         p=np.argmax(y_batch,axis=1)#y中每一行的预测结果的下标，100行
         accuracy_cnt+=np.sum(p==t[i:i+batch_size])
     print("Accuracy:" + str(float(accuracy_cnt) / len(x)))
-done_network_pack()
+def mean_squared_error(y,t):
+    '''损失函数：表示神经网络的优劣程度——与真实情况之间的误差大小，比如均方差函数
+    采用损失函数而非精确函数的原因：参数改变时，精确函数产生的变化不连续而损失函数产生的变化连续，这便于我们求导从而确定参数的改进方向
+  
+    如果是大量数据，加和取平均耗时过长，因此采用随机选取一小部分数据进行学习（mini-batch）
+    选取实例：
+    (x_train, t_train), (x_test, t_test) = load_mnist(flatten=True,normalize=True,one_hot_label=True)
+    train_size=x_train.shape[0]
+    batch_size=3
+    batch_mask=np.random.choice(train_size,batch_size)#从6000个里面选10个
+    x_batch=x_train[batch_mask]
+    t_batch=t_train[batch_mask]
+    print(t_batch)#[[0. 0. 0. 1. 0. 0. 0. 0. 0. 0.][0. 0. 0. 0. 0. 1. 0. 0. 0. 0.][0. 1. 0. 0. 0. 0. 0. 0. 0. 0.]]
+
+    注意这里的t，在手写数字识别中t是one-hot形式的数组即仅有正确解为1其余皆为0
+    以均方差函数为例'''
+    return 0.5*np.sum((y-t)**2)
+def cross_entropy_error(y,t):
+    '''交叉熵误差：仅计算t中正确标签对应的测试标签概率的对数
+    （由于概率小于1其对数小于0所以结果要*-1）改善一下让他可以同时处理单个数据和批数据
+    
+    如果t是标签形式，仅在每个对应图片序号下标填入对应数字则利用np.arrange(size)：生成一个0-size-1的数组
+    即：return -np.sum(t*np.log(y[np.arrange(batch_size),t]+delta))/batch_size
+    会生成[y[0,3],y[1,7],y[2,6]...]，即神经网络输出的n维计算结果中，第0张的正确答案是3，第1张答案是7...'''
+    if y.ndim==1:#y是神经网络的输出
+        y=y.reshape(1,y.size)
+        t=t.reshape(1,y.size)
+    batch_size=y.shape[0]
+    delta=1e-7#如果概率为0则计算log0会是负无穷，加个微小值避免这种情况    
+    return -np.sum(t*np.log(y+delta))/batch_size
+
+#开始看怎么选择参数以减少损失函数的值
+#预备知识：导数和梯度的实现
+def numerical_diff(f,x):
+    h=1e-4
+    return (f(x+h)-f(x-h))/(2*h)
+def tangent_line_diff(f, x):
+    d = numerical_diff(f, x)
+    print(d)
+    y = f(x) - d*x
+    return lambda t: d*t + y
+def numerical_gradient_no_batch(f, x):
+    '''梯度指向的方向是函数值减少最多的方向'''
+    h = 1e-4 # 0.0001
+    grad = np.zeros_like(x)
+    for i in range(x.size):
+        tmp_val = x[i]
+        x[i] = float(tmp_val) + h
+        fxh1 = f(x) # f(x+h)
+        x[i] = tmp_val - h 
+        fxh2 = f(x) # f(x-h)
+        grad[i] = (fxh1 - fxh2) / (2*h)
+        x[i] = tmp_val # 还原值  
+    return grad
+def numerical_gradient(f, X):
+    '''批量数据求梯度'''
+    if X.ndim == 1:
+        return numerical_gradient_no_batch(f, X)
+    else:
+        grad = np.zeros_like(X)
+        for i, x in enumerate(X):#同时列出下标与下标对象
+            grad[i] = numerical_gradient_no_batch(f, x)
+        return grad
+def fun_2(x):
+    if x.ndim == 1:
+        return np.sum(x**2)
+    else:
+        return np.sum(x**2, axis=1)
+def tangent_line_gradient(f, x):#返回梯度函数
+    d = numerical_gradient(f, x)
+    print(d)
+    y = f(x) - d*x
+    return lambda t: d*t + y  
+def gradient_pic_show():
+    x0 = np.arange(-2, 2.5, 0.25)
+    x1 = np.arange(-2, 2.5, 0.25)
+    X, Y = np.meshgrid(x0, x1)
+    X = X.flatten()
+    Y = Y.flatten()
+    grad = numerical_gradient(fun_2, np.array([X, Y]) )
+
+    plt.figure()
+    plt.quiver(X, Y, -grad[0], -grad[1],  angles="xy",color="#666666")#,headwidth=10,scale=40,color="#444444")
+    plt.xlim([-2, 2])
+    plt.ylim([-2, 2])
+    plt.xlabel('x0')
+    plt.ylabel('x1')
+    plt.grid()
+    plt.legend()
+    plt.draw()
+    plt.show()
+def gradient_descend(f,init_x,lr=0.01,step_num=100):
+    '''梯度下降法调整参数—lr:更新参数的程度,step_num：梯度下降法的重复次数
+    gradient_descend(fun_2,init_x=np.array([-3.0,4.0]),lr=0.1,step_num=100)'''
+    x=init_x
+    for _i in range(step_num):
+        grad=numerical_gradient(f,x)
+        x=x-grad*lr
+    return x
