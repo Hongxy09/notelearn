@@ -192,7 +192,7 @@ def tangent_line_diff(f, x):
     y = f(x) - d*x
     return lambda t: d*t + y
 def numerical_gradient_no_batch(f, x):
-    '''梯度指向的方向是函数值减少最多的方向'''
+    '''梯度指向的方向是各点函数值减少最多的方向'''
     h = 1e-4 # 0.0001
     grad = np.zeros_like(x)
     for i in range(x.size):
@@ -243,9 +243,11 @@ def gradient_pic_show():
     plt.show()
 def gradient_descend(f,init_x,lr=0.01,step_num=100):
     '''梯度下降法调整参数—lr:更新参数的程度,step_num：梯度下降法的重复次数
-    gradient_descend(fun_2,init_x=np.array([-3.0,4.0]),lr=0.1,step_num=100)'''
+    gradient_descend(fun_2,init_x=np.array([-3.0,4.0]),lr=0.1,step_num=100)
+    这里是针对fun_2函数进行梯度下降调整输入的x以达到fun_2(x)的最小值'''
     x=init_x
     for _i in range(step_num):
         grad=numerical_gradient(f,x)
         x=x-grad*lr
     return x
+#神经网络中的梯度：损失函数关于权重参数的梯度
