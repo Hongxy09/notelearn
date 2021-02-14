@@ -55,6 +55,12 @@ def softmax(a):
     sum_exp_a=np.sum(exp_a)
     y=exp_a/sum_exp_a
     return y
+def sigmoid_grad(x):
+    return (1.0 - sigmoid(x)) * sigmoid(x)
+def relu_grad(x):
+    grad = np.zeros(x)
+    grad[x>=0] = 1
+    return grad
 '''np.dot(矩阵点乘);np.shape(多维数组第0维元素个数，第1维元素个数...)=(3,2)三行两列'''
 #矩阵实现三层神经网络
 def init_network_ex():
@@ -278,7 +284,10 @@ def done_simpleNet():
     3.按照梯度对权重参数进行微小改变
     4.重复1，2，3'''
 class TwoLayerNet:
-    '''两层神经网的实现'''
+    '''两层神经网的实现，一层隐藏层
+    W1第一层权重的形状：输入层的神经元个数*第一层神经网络的神经元个数，不包括偏置神经元b
+    np.random.rand()通过本函数可以返回一个或一组服从“0~1”均匀分布的随机样本值
+    np.random.randn()通过本函数可以返回一个或一组服从标准正态分布的随机样本值'''
     def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01):
         # 初始化权重
         self.params = {}
@@ -298,28 +307,28 @@ class TwoLayerNet:
     def loss(self, x, t):
         y = self.predict(x)
         return cross_entropy_error(y, t)
-    
     def accuracy(self, x, t):
         y = self.predict(x)
         y = np.argmax(y, axis=1)
         t = np.argmax(t, axis=1) 
         accuracy = np.sum(y == t) / float(x.shape[0])
         return accuracy
-        
     # x:输入数据, t:监督数据
-    def numerical_gradient(self, x, t):
+    def numerical_gradient_in_Twonet(self, x, t):
         loss_W = lambda W: self.loss(x, t)
+        '''保存梯度的字典型变量，即numerical_gradient的返回值'''
         grads = {}
         grads['W1'] = numerical_gradient(loss_W, self.params['W1'])
         grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
         grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
         grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
         return grads
-        
+
     def gradient(self, x, t):
         W1, W2 = self.params['W1'], self.params['W2']
         b1, b2 = self.params['b1'], self.params['b2']
         grads = {}
+        
         batch_num = x.shape[0]
         
         # forward
@@ -332,6 +341,7 @@ class TwoLayerNet:
         dy = (y - t) / batch_num
         grads['W2'] = np.dot(z1.T, dy)
         grads['b2'] = np.sum(dy, axis=0)
+        
         da1 = np.dot(dy, W2.T)
         dz1 = sigmoid_grad(a1) * da1
         grads['W1'] = np.dot(x.T, dz1)
