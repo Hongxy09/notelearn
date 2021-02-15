@@ -2,6 +2,7 @@ import os
 import sys
 from PIL import Image  # 导入图像显示模块
 from dataset.mnist import load_mnist
+from collections import OrderedDict
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
@@ -70,7 +71,8 @@ def relu(x):
 
 
 def softmax(x):
-    '''概率函数，y[0]的概率...y[1]的概率...
+    '''可以将输出正规化为0~1之间的数据，其中值越大则转化后的概率也越大
+    概率函数，y[0]的概率...y[1]的概率...
     yk=exp(xk)/sum-exp(xi)[1<=i<=n]
     防止指数函数运算溢出，将分子分母分别在指数内加一个系统上限数或者输入函数中的最大数'''
     if x.ndim == 2:
@@ -270,7 +272,7 @@ def numerical_gradient_no_batch(f, x):
 
 
 def numerical_gradient(f, X):
-    '''批量数据求梯度'''
+    '''数值微分批量数据求梯度：非常耗时一般用来检查梯度的正确性'''
     if X.ndim == 1:
         return numerical_gradient_no_batch(f, X)
     else:
@@ -388,7 +390,7 @@ class TwoLayerNet:
         return y
     # x:输入数据, t:监督数据(训练数据)
 
-    def loss(self, x, t):
+    def loss(self, x, t):  # 计算损失函数
         y = self.predict(x)
         return cross_entropy_error(y, t)
 
@@ -400,7 +402,7 @@ class TwoLayerNet:
         return accuracy
     # x:输入数据, t:监督数据
 
-    def numerical_gradient_in_Twonet(self, x, t):
+    def numerical_gradient(self, x, t):
         def loss_W(W): return self.loss(x, t)
         '''保存梯度的字典型变量，即numerical_gradient的返回值'''
         grads = {}
@@ -408,31 +410,6 @@ class TwoLayerNet:
         grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
         grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
         grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
-        return grads
-
-    def gradient(self, x, t):
-        W1, W2 = self.params['W1'], self.params['W2']
-        b1, b2 = self.params['b1'], self.params['b2']
-        grads = {}
-
-        batch_num = x.shape[0]
-
-        # forward
-        a1 = np.dot(x, W1) + b1
-        z1 = sigmoid(a1)
-        a2 = np.dot(z1, W2) + b2
-        y = softmax(a2)
-
-        # backward
-        dy = (y - t) / batch_num
-        grads['W2'] = np.dot(z1.T, dy)
-        grads['b2'] = np.sum(dy, axis=0)
-
-        da1 = np.dot(dy, W2.T)
-        dz1 = sigmoid_grad(a1) * da1
-        grads['W1'] = np.dot(x.T, dz1)
-        grads['b1'] = np.sum(dz1, axis=0)
-
         return grads
 
 
@@ -456,10 +433,10 @@ def done_mini_batch_in_TwoLayerNet():
         t_batch = t_train[batch_mask]
 
         # 计算梯度
-        grad = network.numerical_gradient_in_Twonet(x_batch, t_batch)
+        grad = network.numerical_gradient(x_batch, t_batch)
         #grad = network.gradient(x_batch, t_batch)
 
-        # 更新参数
+        # 更新参数——梯度下降法调整权重参数
         for key in ('W1', 'b1', 'W2', 'b2'):
             network.params[key] = network.params[key] - \
                 learning_rate * grad[key]
@@ -519,3 +496,166 @@ class AddLayer:
         return dx, dy
 
 
+class Relu:
+    '''将输入中所有<=0的值置为0'''
+
+    def __init__(self):
+        self.mask = None  # 类似之前t标签数组，为0/1构成的数组
+
+    def forward(self, x):
+        self.mask = (x <= 0)
+        out = x.copy()
+        out[self.mask] = 0  # mask为1处会置为0
+        return out
+
+    def backward(self, dout):
+        dout[self.mask] = 0
+        dx = dout
+        return dx
+
+
+class Sigmoid:
+    '''exp(x)的反向传播：exp(x);y=1/x的反向传播：-y**2'''
+
+    def __init__(self):
+        self.out = None  # 保存一下输出用于反向传播计算
+
+    def forward(self, x):
+        out = 1/(1+np.exp(-x))
+        self.out = out
+        return out
+
+    def backward(self, dout):
+        dx = dout*((1.0-self.out)*self.out)
+        return dx
+
+
+class Affine:
+    '''神经网络的正向传播也称为‘仿射变换’=一次线性变换和一次平移——Affine层
+    结论1）矩阵X*W对X进行求导，答案是W的转置
+        关于矩阵的转置：可以将X中的元素视为变元，将X*W矩阵中每个元素针对X中的变元进行多元函数求导运算，并将结果行展开
+    结论2）X和dL/dX的形状具有一致性，L是反向传播时候输出层的上游值
+    结论3）针对批处理中偏置的计算，dL/dB=dL/dY的列方向求和，使得原本形状为(N*3)的dL/dY转为(3,)形状，即与B形状相同
+        问题1.为何进行加和处理？为了统一形式吗？
+        问题2.为何是按列进行加和？
+        答：在计算L对B的偏导时，仅仅考虑B对Y的贡献，此时的上游L对Y偏导在列方向整合起来就是N*B'''
+
+    def __init__(self, W, b):
+        self.W = W
+        self.b = b
+        self.x = None
+        self.original_x_shape = None  # 考虑四维情形
+        self.dW = None
+        self.db = None
+
+    def forward(self, x):
+        self.original_x_shape = x.shape
+        x = x.reshape(x.shape[0], -1)  # 将x变成一个二维的形状（行，列为剩下的维数相乘）
+        self.x = x
+        out = np.dot(x, self.W)+self.b
+        return out
+
+    def backward(self, dout):
+        dx = np.dot(dout, self.W.T)
+        self.dW = np.dot(self.x.T, dout)
+        self.db = np.sum(dout, axis=0)
+        dx = dx.reshape(*self.original_x_shape)  # 还原输入数据的形状（对应张量）
+        return dx
+
+
+class SoftmaxWithLoss:
+    ''''softmax的反向传播会得到y-t的结果，正是输出和答案的差分，前面的层可以根据这个差分的大小进行相应大小的学习'''
+
+    def __init__(self):
+        self.loss = None
+        self.y = None  # softmax的输出
+        self.t = None  # 监督数据==训练数据
+
+    def forward(self, x, t):
+        self.t = t
+        self.y = softmax(x)
+        self.loss = cross_entropy_error(self.y, self.t)
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+        if self.t.size == self.y.size:  # 监督数据是one-hot-vector的情况
+            dx = (self.y - self.t) / batch_size
+        else:
+            dx = self.y.copy()
+            dx[np.arange(batch_size), self.t] -= 1
+            dx = dx / batch_size
+        return dx
+
+
+class TwoLayerNet_in_Layer:
+    '''模块化操作，用记录顺序的字典记录操作的两层神经网络
+    字典：keys返回所有关键字,values返回所有值,items返回所有键对'''
+
+    def __init__(self, input_size, hidden_size, output_size, weight_init_std=0.01):
+        # 初始化权重
+        self.params = {}
+        self.params['W1'] = weight_init_std * \
+            np.random.randn(input_size, hidden_size)
+        self.params['b1'] = np.zeros(hidden_size)
+        self.params['W2'] = weight_init_std * \
+            np.random.randn(hidden_size, output_size)
+        self.params['b2'] = np.zeros(output_size)
+
+        # 生成层
+        self.layers = OrderedDict()
+        self.layers['Affine1'] = Affine(self.params['W1'], self.params['b1'])
+        self.layers['Relu1'] = Relu()
+        self.layers['Affine2'] = Affine(self.params['W2'], self.params['b2'])
+
+        self.lastLayer = SoftmaxWithLoss()
+
+    def predict(self, x):
+        for layer in self.layers.values():
+            x = layer.forward(x)
+        return x
+
+    # x:输入数据, t:监督数据
+    def loss(self, x, t):
+        y = self.predict(x)
+        return self.lastLayer.forward(y, t)
+
+    def accuracy(self, x, t):
+        y = self.predict(x)
+        y = np.argmax(y, axis=1)  # 返回行中最大值的下标
+        if t.ndim != 1:
+            t = np.argmax(t, axis=1)
+        accuracy = np.sum(y == t) / float(x.shape[0])
+        return accuracy
+
+    # x:输入数据, t:监督数据
+    def numerical_gradient(self, x, t):
+        def loss_W(W): return self.loss(x, t)
+
+        grads = {}
+        grads['W1'] = numerical_gradient(loss_W, self.params['W1'])
+        grads['b1'] = numerical_gradient(loss_W, self.params['b1'])
+        grads['W2'] = numerical_gradient(loss_W, self.params['W2'])
+        grads['b2'] = numerical_gradient(loss_W, self.params['b2'])
+
+        return grads
+
+    def gradient(self, x, t):
+        # forward
+        self.loss(x, t)
+
+        # backward
+        dout = 1
+        dout = self.lastLayer.backward(dout)
+
+        layers = list(self.layers.values())
+        layers.reverse()
+        for layer in layers:
+            dout = layer.backward(dout)
+
+        # 设定
+        grads = {}
+        grads['W1'], grads['b1'] = self.layers['Affine1'].dW, self.layers['Affine1'].db
+        grads['W2'], grads['b2'] = self.layers['Affine2'].dW, self.layers['Affine2'].db
+
+        return grads
