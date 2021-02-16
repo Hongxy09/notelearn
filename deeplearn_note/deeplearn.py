@@ -659,49 +659,69 @@ class TwoLayerNet_in_Layer:
         grads['W2'], grads['b2'] = self.layers['Affine2'].dW, self.layers['Affine2'].db
 
         return grads
+
+
 class SGD:
     '''随机梯度下降法（Stochastic Gradient Descent）'''
-    def __init__(self,lr=0.01):
-        self.lr=lr
-    def update(self,params,grads):
+
+    def __init__(self, lr=0.01):
+        self.lr = lr
+
+    def update(self, params, grads):
         for key in params.keys():
-            params[key]-=self.lr*grads[key]
+            params[key] -= self.lr*grads[key]
+
 
 class Momentum:
     '''动量法更新权重参数
     v=αv-lr*grads;W=W+v（v是速度，W是权重参数）'''
+
     def __init__(self, lr=0.01, momentum=0.9):
         self.lr = lr
         self.momentum = momentum
         self.v = None
-        
+
     def update(self, params, grads):
         if self.v is None:
             self.v = {}
-            for key, val in params.items():                                
-                self.v[key] = np.zeros_like(val)#形状一样但是元素全为0
-                
+            for key, val in params.items():
+                self.v[key] = np.zeros_like(val)  # 形状一样但是元素全为0
+
         for key in params.keys():
-            self.v[key] = self.momentum*self.v[key] - self.lr*grads[key] 
+            self.v[key] = self.momentum*self.v[key] - self.lr*grads[key]
             params[key] += self.v[key]
+
+
 class AdaGrad:
     '''根据权重参数更新幅度改变学习率，使变动大的参数的学习率逐渐减小
     学习率衰减：前期大幅度提升学快点，后面学慢点以接近最优值【这书的翻译好差劲啊】'''
+
     def __init__(self, lr=0.01):
         self.lr = lr
         self.h = None
-        
+
     def update(self, params, grads):
         if self.h is None:
             self.h = {}
             for key, val in params.items():
                 self.h[key] = np.zeros_like(val)
-            
+
         for key in params.keys():
             self.h[key] += grads[key] * grads[key]
             params[key] -= self.lr * grads[key] / (np.sqrt(self.h[key]) + 1e-7)
+
+
 '''权重初始值的选择——保持输出数据的广度，避免梯度消失
 1）init_weight=1则输出值的分布仅依靠其激活函数，以sigmoid函数为例，在靠近0、1时其斜率为0，会导致输出函数在0，1附近“梯度消失”问题
 2）init_weight=0.01大家长得太像了导致输出函数的“表现力受限”问题（全都集中在0.5了没有意义）
 3）Relu函数——He初始值（根号下2/n）S型曲线函数——Xavier初始值（根号下1/n），n是前一层神经元的数目
+为调整输出函数的分布，插入对其进行正规化的层——Batch Normalization层（可以加快学习速度并使学习对权重初始值健壮）
 '''
+
+'''过拟合问题——数据多但是训练部分少，两个解决的正则化方法如下
+解决办法1）权值衰减，即通过对过大的权重对应的损失函数增加与权重有关的一个量，使得越大的权重其损失函数也越大，达到快速降低大权重参数的目的
+解决办法2）Dropout 随即删除隐藏层神经元抑制过拟合的出现'''
+
+'''超参数的验证，通过在限定范围内随机取样计算其在训练数据集内部和验证数据集内部的识别精度
+随机取样的代码：lr=10**np.random.uniform(low,high,size)#从一个均匀分布[low,high)中随机采样,size是输出数据的数目'''
+print("so sad")
