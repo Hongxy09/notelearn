@@ -1,6 +1,8 @@
 import os
 import sys
+sys.path.append(os.pardir)
 from PIL import Image  # 导入图像显示模块
+from common.util import im2col
 from dataset.mnist import load_mnist
 from collections import OrderedDict
 import pickle
@@ -724,4 +726,28 @@ class AdaGrad:
 
 '''超参数的验证，通过在限定范围内随机取样计算其在训练数据集内部和验证数据集内部的识别精度
 随机取样的代码：lr=10**np.random.uniform(low,high,size)#从一个均匀分布[low,high)中随机采样,size是输出数据的数目'''
-print("so sad")
+
+'''卷积运算：输入数据对滤波器（一个矩阵）进行分步的矩阵运算
+输入数据（H,W）滤波器（FH，FW）步幅S，填充P，输出（OH，OW）
+OH=(H+2P-FH)/S+1;OW=(W+2P-FW)/S+1
+如果是多维数据那么其输入数据的维数（通道数）和滤波器的维数要保持一致，运算结果是每个通道进行滤波器处理后叠加的结果
+多维输入对应多维滤波器对应一维输出，如果想要多维输出，增加滤波器的“个数”!=通道数!=维数
+(N,C,H,W)-(FN,C,FH,FW)->(N,FN,OH,OW)-(+FN,1,1)->(N,FN,OH,OW)
+池化层：按照步幅S取其对应矩阵区域内的最大值（Max池化）一般来说输出层形状==S*S
+'''
+class Convolution:
+    def __init__(self,W,b,stride=1,pad=0):
+        self.W=W
+        self.b=b
+        self.stride=stride
+        self.pad=pad
+    def forward(self,x):
+        FN,C,FH,FW=self.W.shape
+        N,C,H,W=x.shape
+        out_h=int(1+(H+2*self.pad-FH)/self.stride)
+        out_w=int(1+(W+2*self.pad-FW)/self.stride)
+        col=im2col(x,FH,FW,self.stride,self.pad)
+        col_W=self.W.reshape(FN,-1).T
+        out=np.dot(col,col_W)+self.b
+        out=out.reshape(N,out_h,out_w,-1).transpose(0,3,1,2)
+        return out
