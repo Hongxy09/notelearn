@@ -78,7 +78,7 @@ def softmax(x):
     yk=exp(xk)/sum-exp(xi)[1<=i<=n]
     防止指数函数运算溢出，将分子分母分别在指数内加一个系统上限数或者输入函数中的最大数'''
     if x.ndim == 2:
-        x = x.T  # 求x的转置
+        x = x.T  #x的转置
         x = x - np.max(x, axis=0)
         y = np.exp(x) / np.sum(np.exp(x), axis=0)
         return y.T
@@ -235,7 +235,7 @@ def cross_entropy_error(y, t):
     如果t是标签形式，仅在每个对应图片序号下标填入对应数字则利用np.arrange(size)：生成一个0-size-1的数组
     即：return -np.sum(t*np.log(y[np.arrange(batch_size),t]+delta))/batch_size
     会生成[y[0,3],y[1,7],y[2,6]...]，即神经网络输出的n维计算结果中，第0张的正确答案是3，第1张答案是7...'''
-    if y.ndim == 1:  # y是神经网络的输出
+    if y.ndim == 1:  #y是神经网络的输出
         y = y.reshape(1, y.size)
         t = t.reshape(1, y.size)
     batch_size = y.shape[0]
