@@ -416,31 +416,33 @@ class Trainer:
 
 class done_network:
     def __init__(self):
+        self.epochs = 10
+        self.evaluate_sample_num_per_epoch = 1000
         (self.x_train, self.t_train), (self.x_test,
                                        self.t_test) = load_mnist(one_hot_label=True)
         self.network = Network_simple(input_size=784, hidden_size_list=[100], output_size=10,
                                       use_batchnorm=False, activation='relu')
         self.trainer = Trainer(self.network, self.x_train, self.t_train, self.x_test, self.t_test,
-                               epochs=20, mini_batch_size=100, optimizer='Adam', optimizer_param={'lr': 0.01},
-                               evaluate_sample_num_per_epoch=1000)
-        self.epochs = 20
+                               epochs=self.epochs, mini_batch_size=100, optimizer='Adam', optimizer_param={'lr': 0.01},
+                               evaluate_sample_num_per_epoch=self.evaluate_sample_num_per_epoch)
+    def done(self, trained=False):
+        if trained == True:
+            self.network.load_params("params.pkl")
+            self.trainer.train()
+            print("train_acc_list:",self.trainer.train_acc_list)
+            print("test_acc_list:",self.trainer.test_acc_list)
+            markers = {'train': 'o', 'test': 's'}
+            x = np.arange(self.epochs)
+            plt.plot(x, self.trainer.train_acc_list,marker='o', label='train', markevery=2)
+            plt.plot(x, self.trainer.test_acc_list,marker='s', label='test', markevery=2)
+            plt.xlabel("epochs")
+            plt.ylabel("accuracy")
+            plt.ylim(0, 1.0)
+            plt.legend(loc='lower right')
+            plt.show()
+        else:
+            self.trainer.train()
+            self.network.save_params("params.pkl")
+            print("Saved!")
+done_network().done(trained=True)
 
-    def done(self):
-        self.trainer.train()
-        self.network.save_params("params.pkl")
-        print("Saved!")
-
-    def draw(self):
-        done_network().done()
-        markers = {'train': 'o', 'test': 's'}
-        x = np.arange(self.epochs)
-        plt.plot(x, self.trainer.train_acc_list,
-                 marker='o', label='train', markevery=2)
-        plt.plot(x, self.trainer.test_acc_list,
-                 marker='s', label='test', markevery=2)
-        plt.xlabel("epochs")
-        plt.ylabel("accuracy")
-        plt.ylim(0, 1.0)
-        plt.legend(loc='lower right')
-        plt.show()
-done_network().draw()
