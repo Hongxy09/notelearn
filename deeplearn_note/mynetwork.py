@@ -323,14 +323,14 @@ class Network_simple:
         grads['b2'] = self.layers['Affine2'].db
         return grads
 
-    def save_params(self, file_name="params.pkl"):
+    def save_params(self, file_name="notelearn/deeplearn_note/params.pkl"):
         params = {}
         for key, val in self.params.items():
             params[key] = val
         with open(file_name, 'wb') as f:
             pickle.dump(params, f)
 
-    def load_params(self, file_name="params.pkl"):
+    def load_params(self, file_name="notelearn/deeplearn_note/params.pkl"):
         with open(file_name, 'rb') as f:
             params = pickle.load(f)
         for key, val in params.items():
@@ -442,7 +442,6 @@ class done_network:
             plt.show()
         else:
             self.trainer.train()
-            self.network.save_params("params.pkl")
+            self.network.save_params()
             print("Saved!")
-done_network().done(trained=True)
-
+done_network().done()
