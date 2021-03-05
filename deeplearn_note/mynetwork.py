@@ -6,6 +6,7 @@ import sys
 import os
 import pickle
 sys.path.append(os.pardir)
+#git
 '''
 1.输入数据->权重加偏置进行计算->激活函数进行整理->输出下一层的值
 2.输出层结果与标签计算损失函数->根据损失函数计算其相对权重的梯度->对权重进行对应的变大/变小操作，变化幅度对应梯度大小
